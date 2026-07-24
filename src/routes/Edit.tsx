@@ -38,7 +38,6 @@ export function Edit() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [textRuns, setTextRuns] = useState<TextRun[]>([])
   const [editedRuns, setEditedRuns] = useState<Record<string, string>>({})
-  const [activeRunId, setActiveRunId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -62,7 +61,6 @@ export function Edit() {
     setLoading(true)
     setElements([])
     setEditedRuns({})
-    setActiveRunId(null)
     textRunsCacheRef.current.clear()
     try {
       const bytes = new Uint8Array(await file.arrayBuffer())
@@ -106,7 +104,6 @@ export function Edit() {
     if (!pdfjsDocRef.current || index < 0 || index >= numPages) return
     setPageIndex(index)
     setSelectedId(null)
-    setActiveRunId(null)
     setLoading(true)
     try {
       await renderPage(pdfjsDocRef.current, index)
@@ -405,12 +402,15 @@ export function Edit() {
               />
               {textRuns.map((run) => {
                 const displayFontSize = (run.fontSize * DISPLAY_WIDTH) / pageSizePt.width
-                const isActive = activeRunId === run.id
                 const value = editedRuns[run.id] ?? run.str
                 const isEdited = editedRuns[run.id] !== undefined
                 return (
-                  <div
+                  <input
                     key={run.id}
+                    value={value}
+                    onChange={(e) => commitRunEdit(run, e.target.value)}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    title={t('edit.clickToEditHint')}
                     style={{
                       left: `${run.xFrac * 100}%`,
                       top: `${run.yFrac * 100}%`,
@@ -418,37 +418,10 @@ export function Edit() {
                       fontSize: displayFontSize,
                       lineHeight: 1.15,
                     }}
-                    className="absolute"
-                  >
-                    {isActive ? (
-                      <input
-                        autoFocus
-                        defaultValue={value}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        onBlur={(e) => {
-                          commitRunEdit(run, e.target.value)
-                          setActiveRunId(null)
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') e.currentTarget.blur()
-                          if (e.key === 'Escape') setActiveRunId(null)
-                        }}
-                        style={{ fontSize: displayFontSize }}
-                        className="w-full rounded-sm border border-brand-500 bg-white px-0.5 leading-tight text-gray-900 outline-none"
-                      />
-                    ) : (
-                      <span
-                        onPointerDown={(e) => e.stopPropagation()}
-                        onClick={() => setActiveRunId(run.id)}
-                        title={t('edit.clickToEditHint')}
-                        className={`block cursor-text whitespace-nowrap rounded-sm px-0.5 hover:bg-brand-100/60 dark:hover:bg-brand-900/30 ${
-                          isEdited ? 'bg-yellow-100/70 outline outline-1 outline-dashed outline-yellow-500 dark:bg-yellow-900/30' : ''
-                        }`}
-                      >
-                        {value}
-                      </span>
-                    )}
-                  </div>
+                    className={`absolute cursor-text rounded-sm border border-transparent bg-transparent px-0.5 leading-tight text-gray-900 outline-none hover:bg-brand-100/50 focus:border-brand-500 focus:bg-white dark:text-gray-100 dark:hover:bg-brand-900/30 dark:focus:bg-black/60 ${
+                      isEdited ? 'bg-yellow-100/70 outline outline-1 outline-dashed outline-yellow-500 dark:bg-yellow-900/30' : ''
+                    }`}
+                  />
                 )
               })}
               {pageElements.map((el) => (
