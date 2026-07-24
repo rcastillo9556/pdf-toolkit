@@ -91,7 +91,12 @@ export function Edit() {
 
     let runs = textRunsCacheRef.current.get(index)
     if (!runs) {
-      runs = await extractTextRuns(page, index)
+      try {
+        runs = await extractTextRuns(page, index)
+      } catch (e) {
+        console.warn('No se pudo detectar el texto existente de esta página', e)
+        runs = []
+      }
       textRunsCacheRef.current.set(index, runs)
     }
     setTextRuns(runs)
