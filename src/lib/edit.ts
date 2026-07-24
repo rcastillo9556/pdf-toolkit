@@ -31,7 +31,15 @@ export interface RectElement extends BaseElement {
   opacity: number
 }
 
-export type EditElement = TextElement | ImageElement | RectElement
+export interface TextReplaceElement extends BaseElement {
+  type: 'textReplace'
+  text: string
+  fontSize: number
+  color: string
+  widthFrac: number
+}
+
+export type EditElement = TextElement | ImageElement | RectElement | TextReplaceElement
 
 function hexToRgb(hex: string) {
   const clean = hex.replace('#', '')
@@ -79,6 +87,25 @@ export async function buildEditedPdf(srcBytes: Uint8Array, elements: EditElement
         y: height - el.yFrac * height - el.heightFrac * height,
         width: el.widthFrac * width,
         height: el.heightFrac * height,
+      })
+    } else if (el.type === 'textReplace') {
+      const baseline = height - el.yFrac * height - el.fontSize
+      // Cover the original glyphs (white rectangle sized from a font-size
+      // heuristic, since exact ascent/descent isn't available) then draw the
+      // replacement text at the same position and size.
+      page.drawRectangle({
+        x: el.xFrac * width - 2,
+        y: baseline - el.fontSize * 0.35,
+        width: el.widthFrac * width + 4,
+        height: el.fontSize * 1.3,
+        color: rgb(1, 1, 1),
+      })
+      page.drawText(el.text, {
+        x: el.xFrac * width,
+        y: baseline,
+        size: el.fontSize,
+        font,
+        color: hexToRgb(el.color),
       })
     }
   }

@@ -14,7 +14,8 @@ import { Dropzone } from '../components/Dropzone'
 import { Button, Alert } from '../components/ui'
 import { download, withSuffix } from '../lib/files'
 import { loadPdfJsDoc, renderPageToCanvas } from '../lib/pdfjs'
-import { buildEditedPdf, type EditElement } from '../lib/edit'
+import { buildEditedPdf, type EditElement, type TextReplaceElement } from '../lib/edit'
+import { extractTextRuns, type TextRun } from '../lib/textRuns'
 import { getTool } from '../lib/tools'
 import { useI18n } from '../lib/i18n'
 import type { PDFDocumentProxy } from 'pdfjs-dist'
@@ -35,6 +36,9 @@ export function Edit() {
   const [pageSizePt, setPageSizePt] = useState({ width: 612, height: 792 })
   const [elements, setElements] = useState<EditElement[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [textRuns, setTextRuns] = useState<TextRun[]>([])
+  const [editedRuns, setEditedRuns] = useState<Record<string, string>>({})
+  const [activeRunId, setActiveRunId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -42,6 +46,7 @@ export function Edit() {
   const pdfjsDocRef = useRef<PDFDocumentProxy | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const imageUrlsRef = useRef<Map<string, string>>(new Map())
+  const textRunsCacheRef = useRef<Map<number, TextRun[]>>(new Map())
   const dragState = useRef<null | {
     id: string
     mode: 'move' | 'resize'
@@ -56,6 +61,9 @@ export function Edit() {
     setError(null)
     setLoading(true)
     setElements([])
+    setEditedRuns({})
+    setActiveRunId(null)
+    textRunsCacheRef.current.clear()
     try {
       const bytes = new Uint8Array(await file.arrayBuffer())
       setSrcBytes(bytes)
@@ -80,12 +88,20 @@ export function Edit() {
     const scale = DISPLAY_WIDTH / nativeViewport.width
     const canvas = await renderPageToCanvas(doc, index + 1, scale)
     setPageImg(canvas.toDataURL('image/jpeg', 0.85))
+
+    let runs = textRunsCacheRef.current.get(index)
+    if (!runs) {
+      runs = await extractTextRuns(page, index)
+      textRunsCacheRef.current.set(index, runs)
+    }
+    setTextRuns(runs)
   }
 
   async function goToPage(index: number) {
     if (!pdfjsDocRef.current || index < 0 || index >= numPages) return
     setPageIndex(index)
     setSelectedId(null)
+    setActiveRunId(null)
     setLoading(true)
     try {
       await renderPage(pdfjsDocRef.current, index)
@@ -156,6 +172,15 @@ export function Edit() {
     reader.readAsArrayBuffer(file)
   }
 
+  function commitRunEdit(run: TextRun, value: string) {
+    setEditedRuns((prev) => {
+      const next = { ...prev }
+      if (value === run.str) delete next[run.id]
+      else next[run.id] = value
+      return next
+    })
+  }
+
   function updateElement(id: string, patch: Partial<EditElement>) {
     setElements((prev) => prev.map((e) => (e.id === id ? ({ ...e, ...patch } as EditElement) : e)))
   }
@@ -192,7 +217,7 @@ export function Edit() {
         xFrac: Math.min(0.95, Math.max(0, drag.orig.xFrac + dxFrac)),
         yFrac: Math.min(0.95, Math.max(0, drag.orig.yFrac + dyFrac)),
       })
-    } else if (drag.orig.type !== 'text') {
+    } else if (drag.orig.type === 'image' || drag.orig.type === 'rect') {
       updateElement(drag.id, {
         widthFrac: Math.max(0.03, drag.orig.widthFrac + dxFrac),
         heightFrac: Math.max(0.03, drag.orig.heightFrac + dyFrac),
@@ -219,7 +244,25 @@ export function Edit() {
     setBusy(true)
     setError(null)
     try {
-      const bytes = await buildEditedPdf(srcBytes, elements)
+      const textReplaceElements: TextReplaceElement[] = []
+      for (const [page, runs] of textRunsCacheRef.current.entries()) {
+        for (const run of runs) {
+          const newText = editedRuns[run.id]
+          if (newText === undefined) continue
+          textReplaceElements.push({
+            id: run.id,
+            type: 'textReplace',
+            page,
+            xFrac: run.xFrac,
+            yFrac: run.yFrac,
+            widthFrac: run.widthFrac,
+            text: newText,
+            fontSize: run.fontSize,
+            color: '#000000',
+          })
+        }
+      }
+      const bytes = await buildEditedPdf(srcBytes, [...elements, ...textReplaceElements])
       download(bytes, withSuffix(fileName, t('edit.suffix')))
     } catch (e) {
       console.error(e)
@@ -248,6 +291,7 @@ export function Edit() {
 
         {srcBytes && pageImg && (
           <>
+            <p className="text-sm text-gray-500 dark:text-gray-400">{t('edit.textRunsHint')}</p>
             <div className="flex flex-wrap items-center gap-2">
               <Button variant="secondary" onClick={addText} icon={<Type className="h-4 w-4" />}>
                 {t('edit.addText')}
@@ -354,6 +398,54 @@ export function Edit() {
                 alt={t('organize.pageAlt', { n: pageIndex + 1 })}
                 className="pointer-events-none absolute inset-0 h-full w-full"
               />
+              {textRuns.map((run) => {
+                const displayFontSize = (run.fontSize * DISPLAY_WIDTH) / pageSizePt.width
+                const isActive = activeRunId === run.id
+                const value = editedRuns[run.id] ?? run.str
+                const isEdited = editedRuns[run.id] !== undefined
+                return (
+                  <div
+                    key={run.id}
+                    style={{
+                      left: `${run.xFrac * 100}%`,
+                      top: `${run.yFrac * 100}%`,
+                      width: `${run.widthFrac * 100}%`,
+                      fontSize: displayFontSize,
+                      lineHeight: 1.15,
+                    }}
+                    className="absolute"
+                  >
+                    {isActive ? (
+                      <input
+                        autoFocus
+                        defaultValue={value}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onBlur={(e) => {
+                          commitRunEdit(run, e.target.value)
+                          setActiveRunId(null)
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') e.currentTarget.blur()
+                          if (e.key === 'Escape') setActiveRunId(null)
+                        }}
+                        style={{ fontSize: displayFontSize }}
+                        className="w-full rounded-sm border border-brand-500 bg-white px-0.5 leading-tight text-gray-900 outline-none"
+                      />
+                    ) : (
+                      <span
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={() => setActiveRunId(run.id)}
+                        title={t('edit.clickToEditHint')}
+                        className={`block cursor-text whitespace-nowrap rounded-sm px-0.5 hover:bg-brand-100/60 dark:hover:bg-brand-900/30 ${
+                          isEdited ? 'bg-yellow-100/70 outline outline-1 outline-dashed outline-yellow-500 dark:bg-yellow-900/30' : ''
+                        }`}
+                      >
+                        {value}
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
               {pageElements.map((el) => (
                 <div
                   key={el.id}
@@ -362,8 +454,8 @@ export function Edit() {
                   style={{
                     left: `${el.xFrac * 100}%`,
                     top: `${el.yFrac * 100}%`,
-                    width: el.type === 'text' ? 'auto' : `${el.widthFrac * 100}%`,
-                    height: el.type === 'text' ? 'auto' : `${el.heightFrac * 100}%`,
+                    width: el.type === 'image' || el.type === 'rect' ? `${el.widthFrac * 100}%` : 'auto',
+                    height: el.type === 'image' || el.type === 'rect' ? `${el.heightFrac * 100}%` : 'auto',
                   }}
                 >
                   {el.type === 'text' && (

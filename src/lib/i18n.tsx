@@ -140,6 +140,8 @@ const translations = {
     edit: {
       dropHint: 'Añade texto, imágenes o resaltados sobre tu PDF',
       loadingPdf: 'Cargando PDF…',
+      textRunsHint: 'Haz clic sobre cualquier texto del documento para editarlo directamente.',
+      clickToEditHint: 'Haz clic para editar este texto',
       addText: 'Añadir texto',
       addImage: 'Añadir imagen',
       addHighlight: 'Añadir resaltado',
@@ -351,6 +353,8 @@ const translations = {
     edit: {
       dropHint: 'Add text, images or highlights to your PDF',
       loadingPdf: 'Loading PDF…',
+      textRunsHint: 'Click any text in the document to edit it directly.',
+      clickToEditHint: 'Click to edit this text',
       addText: 'Add text',
       addImage: 'Add image',
       addHighlight: 'Add highlight',

@@ -177,7 +177,7 @@ export function FillSign() {
         xFrac: Math.min(0.95, Math.max(0, drag.orig.xFrac + dxFrac)),
         yFrac: Math.min(0.95, Math.max(0, drag.orig.yFrac + dyFrac)),
       })
-    } else if (drag.orig.type !== 'text') {
+    } else if (drag.orig.type === 'image' || drag.orig.type === 'rect') {
       updateElement(drag.id, {
         widthFrac: Math.max(0.03, drag.orig.widthFrac + dxFrac),
         heightFrac: Math.max(0.03, drag.orig.heightFrac + dyFrac),
@@ -468,8 +468,8 @@ export function FillSign() {
                   style={{
                     left: `${el.xFrac * 100}%`,
                     top: `${el.yFrac * 100}%`,
-                    width: el.type === 'text' ? 'auto' : `${el.widthFrac * 100}%`,
-                    height: el.type === 'text' ? 'auto' : `${el.heightFrac * 100}%`,
+                    width: el.type === 'image' || el.type === 'rect' ? `${el.widthFrac * 100}%` : 'auto',
+                    height: el.type === 'image' || el.type === 'rect' ? `${el.heightFrac * 100}%` : 'auto',
                   }}
                 >
                   {el.type === 'text' && (
