@@ -140,7 +140,8 @@ const translations = {
     edit: {
       dropHint: 'Añade texto, imágenes o resaltados sobre tu PDF',
       loadingPdf: 'Cargando PDF…',
-      textRunsHint: 'Haz clic sobre cualquier texto del documento para editarlo directamente.',
+      textRunsHint: 'Haz clic sobre cualquier texto del documento para editarlo directamente. Líneas detectadas',
+      noTextDetected: 'No se detectó texto seleccionable en esta página (puede ser una imagen o escaneo).',
       clickToEditHint: 'Haz clic para editar este texto',
       addText: 'Añadir texto',
       addImage: 'Añadir imagen',
@@ -353,7 +354,8 @@ const translations = {
     edit: {
       dropHint: 'Add text, images or highlights to your PDF',
       loadingPdf: 'Loading PDF…',
-      textRunsHint: 'Click any text in the document to edit it directly.',
+      textRunsHint: 'Click any text in the document to edit it directly. Lines detected',
+      noTextDetected: 'No selectable text was detected on this page (it may be an image or scan).',
       clickToEditHint: 'Click to edit this text',
       addText: 'Add text',
       addImage: 'Add image',

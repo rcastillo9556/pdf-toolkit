@@ -293,7 +293,11 @@ export function Edit() {
 
         {srcBytes && pageImg && (
           <>
-            <p className="text-sm text-gray-500 dark:text-gray-400">{t('edit.textRunsHint')}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {textRuns.length > 0
+                ? t('edit.textRunsHint') + ` (${textRuns.length})`
+                : t('edit.noTextDetected')}
+            </p>
             <div className="flex flex-wrap items-center gap-2">
               <Button variant="secondary" onClick={addText} icon={<Type className="h-4 w-4" />}>
                 {t('edit.addText')}
